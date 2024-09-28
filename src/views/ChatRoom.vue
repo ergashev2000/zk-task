@@ -40,7 +40,6 @@
           </div>
         </div>
       </TransitionGroup>
-      
       <div v-if="!messages.length" class="h-full flex justify-center items-center">
         <img src="../assets/images/empty.png" alt="empty messages" width="150">
       </div>
@@ -65,8 +64,6 @@
     </div>
   </div>
 </template>
-
-
 
 <script lang="ts">
 import { SendHorizontal } from "lucide-vue-next";
@@ -120,7 +117,6 @@ export default defineComponent({
           };
           messages.value.push(newMessage);
           break;
-
         case "send_online_users":
           const memberId = chatData.member_id;
           if (chatData.is_online) {
@@ -137,7 +133,6 @@ export default defineComponent({
 
       nextTick(() => scrollToBottom());
     };
-
 
     const connect = () => {
       if (!token.value) {

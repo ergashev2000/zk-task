@@ -22,7 +22,7 @@ interface ReplyMessage {
     constructor(private token: string, private onOpen: () => void) {}
   
     connect(onMessage: (data: any) => void) {
-      this.socket = new WebSocket(`ws://5.182.26.58:4321/ws/web?token=${this.token}`);
+      this.socket = new WebSocket(`${import.meta.env.VITE_BASE_WS_URL}/ws/web?token=${this.token}`);
   
       this.socket.onopen = (event) => {
         console.log("WebSocket connection opened", event);
