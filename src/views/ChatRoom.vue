@@ -16,7 +16,7 @@
       </p>
     </div>
 
-    <div ref="messageContainer" class="flex-1 overflow-y-auto p-4 bg-white overflow-x-hidden chat_body">
+    <div ref="messageContainer" class="flex-1 overflow-y-auto p-4 bg-white overflow-x-hidden chat_body rounded-b-md">
       <TransitionGroup name="list" tag="div">
         <div v-for="msg in messages" :key="msg.message_unique_id" class="mb-4">
           <div class="flex gap-4" :class="{ 'flex-row-reverse': msg?.isYou }">
@@ -35,7 +35,7 @@
                 </svg>
               </span>
               <div v-if="msg?.reply_message"
-                class="min-h-4 bg-red-500/10 flex gap-2 backdrop-blur rounded px-2 py-1 border-l-4 border-red-500 ">
+                class="border-l-red-500  min-h-4 bg-red-500/10 flex gap-2 backdrop-blur rounded px-2 py-1 border-l-4 border-red-500/20 border">
                 <span>
                   <Reply :size="18" />
                 </span>
@@ -62,25 +62,22 @@
       </div>
     </div>
 
-    <div v-if="isOpenEmoji" class="absolute bottom-10 left-8 z-10">
-      <emoji-picker @emoji-click="onEmojiClick"></emoji-picker>
-    </div>
-
-    
+    <MessageInput :selectedReplyMessage="selectedReplyMessage" :isLoading="isLoading" @sendMessage="sendMessage" />
   </div>
 </template>
 
 <script lang="ts">
 import { MessageSquareReply, Reply, SendHorizontal } from "lucide-vue-next";
-import { defineComponent, ref, onBeforeUnmount, nextTick, useTemplateRef, onMounted } from "vue";
-import "emoji-picker-element";
-import { toast } from 'vue3-toastify';
-import WebSocketService from "@/services/WebSocketService";
+import { defineComponent, ref, onBeforeUnmount, nextTick, useTemplateRef, onMounted, TransitionGroup } from "vue";
 import { getCurrectTime } from "@/utils/formatTime";
 import { generatedId } from "@/utils/generateId";
+import WebSocketService from "@/services/WebSocketService";
 import Loading from "@/components/Loading.vue";
+import MessageInput from "@/components/MessageInput.vue";
+
 import type { Message, SelectedReplyMessage } from "@/types/chatTypes";
 import { notify } from "@/utils/notifications";
+import "emoji-picker-element";
 
 export default defineComponent({
   name: "ChatRoom",
@@ -88,13 +85,13 @@ export default defineComponent({
     SendHorizontal,
     MessageSquareReply,
     Reply,
-    Loading
+    Loading,
+    MessageInput,
+    TransitionGroup
   },
   setup() {
     const token = ref<string>("");
-    const message = ref<string>("");
     const ownId = ref<string>("");
-    const isOpenEmoji = ref<boolean>(false);
     const isConnected = ref<boolean>(false);
     const isLoading = ref<boolean>(false);
     const messages = ref<Array<Message>>([]);
@@ -108,8 +105,6 @@ export default defineComponent({
         messageContainer.value.scrollTop = messageContainer.value.scrollHeight - messageContainer.value.clientHeight;
       }
     };
-
-
 
     const handleIncomingMessage = (data: any) => {
       if (!data || !data.action) return;
@@ -163,15 +158,6 @@ export default defineComponent({
       });
     };
 
-    const toggleEmojiPicker = () => {
-      isOpenEmoji.value = !isOpenEmoji.value;
-    };
-
-    const onEmojiClick = (event: any) => {
-      message.value += event.detail.unicode;
-      isOpenEmoji.value = false;
-    };
-
     onBeforeUnmount(() => {
       socketService?.close();
     });
@@ -189,8 +175,8 @@ export default defineComponent({
       };
     };
 
-    const sendMessage = () => {
-      if (!message.value.trim()) return;
+    const sendMessage = (inputMessage: string) => {
+      if (!inputMessage.trim()) return;
       if (!token.value.trim()) return notify("Please, enter your token!");
       isLoading.value = true;
 
@@ -198,7 +184,7 @@ export default defineComponent({
         action: "send_message_to_chat",
         payload: {
           chat_room_id: 1,
-          message: `${message.value}|||${ownId.value}`,
+          message: `${inputMessage}|||${ownId.value}`,
           reply_message: selectedReplyMessage.value
             ? {
               id: selectedReplyMessage.value.id,
@@ -211,22 +197,17 @@ export default defineComponent({
       };
 
       socketService?.sendMessage(payload);
-      message.value = "";
       selectedReplyMessage.value = null;
     };
 
     return {
       token,
-      message,
       messages,
-      isOpenEmoji,
       isConnected,
       selectedReplyMessage,
       ownId,
       connect,
       sendMessage,
-      toggleEmojiPicker,
-      onEmojiClick,
       selectReplyMessage,
       isLoading
     };
