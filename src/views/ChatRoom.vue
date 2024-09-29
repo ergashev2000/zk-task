@@ -1,41 +1,58 @@
 <template>
-  <div class="flex flex-col h-screen py-5 rounded-lg max-w-[36rem] mx-auto px-4">
+  <div class="flex flex-col h-[100dvh] py-5 rounded max-w-[36rem] mx-auto px-4">
     <div class="flex space-x-2 mb-2">
       <input v-model="token" type="text" placeholder="Enter your token"
-        class="flex-1 py-2 px-4 border rounded-md border-gray-300" />
+        class="flex-1 py-2 px-4 border rounded-md border-gray-300" @keyup.enter="connect" />
       <button @click="connect"
         class="bg-green-500 text-white px-5 py-2 rounded-md hover:bg-green-700 transition-all duration-300 active:bg-green-400">
         Connect
       </button>
     </div>
 
-    <div class="bg-white py-3 text-center border-b rounded-t-xl font-semibold">
-      <h4 :class="isConnected ? 'text-green-500' : 'text-red-500'">
+    <div class="bg-white py-3 text-center border-b rounded-t font-semibold">
+      <h3>Chat</h3>
+      <p class="text-sm" :class="isConnected ? 'text-green-500' : 'text-red-500'">
         {{ isConnected ? 'Online' : 'Offline' }}
-      </h4>
+      </p>
     </div>
 
     <div ref="messageContainer" class="flex-1 overflow-y-auto p-4 bg-white overflow-x-hidden chat_body">
       <TransitionGroup name="list" tag="div">
         <div v-for="msg in messages" :key="msg.message_unique_id" class="mb-4">
-          <div class="flex gap-4" :class="{ 'flex-row-reverse': msg.sender_id === 25 }">
+          <div class="flex gap-4" :class="{ 'flex-row-reverse': msg?.isYou }">
             <div class="min-w-10 max-w-10 h-10 rounded-full flex justify-center items-center overflow-hidden border">
               <img src="../assets/images/avatar_he.svg" alt="Avatar" class="w-full h-full object-cover"
-                v-if="msg.sender_id === 25" />
+                v-if="msg?.isYou" />
               <img src="../assets/images/avatar_she.svg" alt="Avatar" class="w-full h-full object-cover" v-else />
             </div>
             <div
-              :class="['relative bg-[#F2F2F7] px-4 pt-2 pb-4  w-2/3', msg.sender_id === 25 ? 'rounded-l-lg rounded-br-xl' : 'rounded-r-lg rounded-bl-xl']">
-              <span :class="['message absolute top-0', msg.sender_id === 25 ? 'mirrored -right-3.5' : '-left-3.5']">
+              :class="['relative group bg-[#F2F2F7] p-2 pt-2 pb-4  w-2/3', msg?.isYou ? 'rounded-l-lg rounded-br-xl' : 'rounded-r-lg rounded-bl-xl']">
+              <span :class="['message absolute top-0', msg?.isYou ? 'mirrored -right-3.5' : '-left-3.5']">
                 <svg width="20" height="22" viewBox="0 0 10 12" fill="none" xmlns="http://www.w3.org/2000/svg">
                   <path
                     d="M9 0C9 0 3.26206 0 1.8 0C0.33795 0 3.14713e-05 1.5 1.35003 3C2.70003 4.5 8.50063 9.5 9 11C9.49936 12.5 9 0 9 0Z"
                     fill="#F2F2F7" />
                 </svg>
               </span>
-              <h3 class="font-bold">{{ msg.sender }}</h3>
-              <p class="font-medium text-sm">{{ msg.text }}</p>
-              <span class="absolute bottom-1 right-2 font-medium text-sm">{{ msg.date }}</span>
+              <div v-if="msg?.reply_message"
+                class="min-h-4 bg-red-500/10 flex gap-2 backdrop-blur rounded px-2 py-1 border-l-4 border-red-500 ">
+                <span>
+                  <Reply :size="18" />
+                </span>
+                <div>
+                  <h3 class="font-semibold text-sm">{{ msg?.reply_message?.message.split("|||")?.[1] }}</h3>
+                  <p class="text-xs">
+                    {{ msg?.reply_message?.message.split("|||")?.[0] }}
+                  </p>
+                </div>
+              </div>
+              <div class="px-2 pt-1 relative ">
+                <h3 class="font-bold">{{ msg.sender }}</h3>
+                <p class="font-medium text-sm">{{ msg.text }}</p>
+                <span class="absolute -bottom-2 right-2 font-medium text-xs">{{ msg.date }}</span>
+                <button @click="selectReplyMessage(msg)"
+                  class="font-semibold text-xs absolute transition-all duration-300 group-hover:opacity-100 opacity-0  rounded px-2 py-1 top-0 right-0">Reply</button>
+              </div>
             </div>
           </div>
         </div>
@@ -49,44 +66,41 @@
       <emoji-picker @emoji-click="onEmojiClick"></emoji-picker>
     </div>
 
-    <div class="p-4 bg-white flex flex-col items-end rounded-b-xl">
-      <div class="flex w-full border border-gray-200 rounded-lg">
-        <button class="hover:bg-gray-100 p-2 rounded-lg" @click="toggleEmojiPicker">
-          <img src="../assets/images/emoji.png" alt="Emoji" width="20" height="20" />
-        </button>
-        <input v-model="message" @keyup.enter="sendMessage" type="text" placeholder="Start typing..."
-          class="flex-1 p-1 py-2 rounded-md outline-none" />
-        <button @click="sendMessage" :disabled="!message"
-          class="ml-2 bg-blue-500 hover:bg-blue-700 active:bg-blue-400 transition-all duration-300 disabled:opacity-50 text-white px-4 py-2 rounded-r-md">
-          <SendHorizontal />
-        </button>
-      </div>
-    </div>
+    
   </div>
 </template>
 
 <script lang="ts">
-import { SendHorizontal } from "lucide-vue-next";
-import { defineComponent, ref, onBeforeUnmount, nextTick, useTemplateRef } from "vue";
+import { MessageSquareReply, Reply, SendHorizontal } from "lucide-vue-next";
+import { defineComponent, ref, onBeforeUnmount, nextTick, useTemplateRef, onMounted } from "vue";
 import "emoji-picker-element";
 import { toast } from 'vue3-toastify';
 import WebSocketService from "@/services/WebSocketService";
 import { getCurrectTime } from "@/utils/formatTime";
+import { generatedId } from "@/utils/generateId";
+import Loading from "@/components/Loading.vue";
+import type { Message, SelectedReplyMessage } from "@/types/chatTypes";
+import { notify } from "@/utils/notifications";
 
 export default defineComponent({
   name: "ChatRoom",
   components: {
     SendHorizontal,
+    MessageSquareReply,
+    Reply,
+    Loading
   },
   setup() {
     const token = ref<string>("");
     const message = ref<string>("");
+    const ownId = ref<string>("");
     const isOpenEmoji = ref<boolean>(false);
     const isConnected = ref<boolean>(false);
+    const isLoading = ref<boolean>(false);
+    const messages = ref<Array<Message>>([]);
+    const selectedReplyMessage = ref<SelectedReplyMessage | null>(null);
+
     const messageContainer = useTemplateRef<HTMLDivElement | null>('messageContainer')
-
-    const messages = ref<Array<{ sender: string; text: string; message_unique_id: string; date: string, sender_id: number | null }>>([]);
-
     let socketService: WebSocketService | null = null;
 
     const scrollToBottom = () => {
@@ -95,25 +109,24 @@ export default defineComponent({
       }
     };
 
-    const notify = (msg: string) => {
-      toast(msg, {
-        autoClose: 3000,
-      });
-    };
+
 
     const handleIncomingMessage = (data: any) => {
       if (!data || !data.action) return;
-
+      isLoading.value = false;
       const { action, data: chatData } = data;
 
       switch (action) {
         case "send_message_to_chat":
+          const msg = chatData.message?.split("|||");
           const newMessage = {
             sender_id: chatData.sender_id || null,
             sender: chatData.sender_name || "Unknown",
-            text: chatData.message || "No message text",
+            text: msg[0] || "No message text",
             message_unique_id: chatData.message_unique_id,
+            isYou: msg[1] === ownId.value,
             date: getCurrectTime(),
+            reply_message: chatData?.reply_message
           };
           messages.value.push(newMessage);
           break;
@@ -121,10 +134,10 @@ export default defineComponent({
           const memberId = chatData.member_id;
           if (chatData.is_online) {
             isConnected.value = true;
-            notify(`Foydalanuvchi (ID: ${memberId}) chatga kirdi.`);
+            notify(`User (ID: ${memberId}) has joined the chat.`);
           } else {
             isConnected.value = false;
-            notify(`Foydalanuvchi (ID: ${memberId}) chatdan chiqib ketdi.`);
+            notify(`User (ID: ${memberId}) has left the chat.`);
           }
           break;
         default:
@@ -142,28 +155,12 @@ export default defineComponent({
 
       socketService = new WebSocketService(token.value, () => {
         isConnected.value = true;
-        notify("Chatga muvaffaqiyatli kirdingiz.");
+        notify("You have successfully entered the chat.");
       });
 
       socketService.connect((data: any) => {
         handleIncomingMessage(data);
       });
-    };
-
-    const sendMessage = () => {
-      if (!message.value.trim()) return;
-
-      const payload = {
-        action: "send_message_to_chat",
-        payload: {
-          chat_room_id: 1,
-          message: message.value,
-          reply_message: null,
-        },
-      };
-
-      socketService?.sendMessage(payload);
-      message.value = "";
     };
 
     const toggleEmojiPicker = () => {
@@ -179,16 +176,59 @@ export default defineComponent({
       socketService?.close();
     });
 
+    onMounted(() => {
+      ownId.value = generatedId()
+    });
+
+    const selectReplyMessage = (msg: any) => {
+      selectedReplyMessage.value = {
+        id: msg.id,
+        message_unique_id: msg.message_unique_id,
+        text: `${msg.text}|||${msg.sender}`,
+        sender_id: msg.sender_id,
+      };
+    };
+
+    const sendMessage = () => {
+      if (!message.value.trim()) return;
+      if (!token.value.trim()) return notify("Please, enter your token!");
+      isLoading.value = true;
+
+      const payload = {
+        action: "send_message_to_chat",
+        payload: {
+          chat_room_id: 1,
+          message: `${message.value}|||${ownId.value}`,
+          reply_message: selectedReplyMessage.value
+            ? {
+              id: selectedReplyMessage.value.id,
+              message_unique_id: selectedReplyMessage.value.message_unique_id,
+              message: selectedReplyMessage.value.text,
+              sender_id: selectedReplyMessage.value.sender_id,
+            }
+            : null,
+        },
+      };
+
+      socketService?.sendMessage(payload);
+      message.value = "";
+      selectedReplyMessage.value = null;
+    };
+
     return {
       token,
       message,
       messages,
       isOpenEmoji,
       isConnected,
+      selectedReplyMessage,
+      ownId,
       connect,
       sendMessage,
       toggleEmojiPicker,
       onEmojiClick,
+      selectReplyMessage,
+      isLoading
     };
   },
 });
